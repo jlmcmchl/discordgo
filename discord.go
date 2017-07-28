@@ -14,9 +14,9 @@
 package discordgo
 
 import (
+	"context"
 	"errors"
 	"fmt"
-	"net/context"
 	"time"
 
 	"google.golang.org/appengine/urlfetch"
