@@ -16,10 +16,10 @@ package discordgo
 import (
 	"errors"
 	"fmt"
+	"net/http"
 	"time"
 
 	"golang.org/x/net/context"
-
 	"google.golang.org/appengine/urlfetch"
 )
 
@@ -49,7 +49,105 @@ var ErrMFA = errors.New("account has 2FA enabled")
 // Also, doing any form of automation with a user (non Bot) account may result
 // in that account being permanently banned from Discord.
 func New(args ...interface{}) (s *Session, err error) {
-	ctx, _ := context.WithTimeout(context.Background(), 20*time.Second)
+
+	// Create an empty Session interface.
+	s = &Session{
+		State:                  NewState(),
+		ratelimiter:            NewRatelimiter(),
+		StateEnabled:           true,
+		Compress:               true,
+		ShouldReconnectOnError: true,
+		ShardID:                0,
+		ShardCount:             1,
+		MaxRestRetries:         3,
+		Client:                 &http.Client{Timeout: (20 * time.Second)},
+		sequence:               new(int64),
+	}
+
+	// If no arguments are passed return the empty Session interface.
+	if args == nil {
+		return
+	}
+
+	// Variables used below when parsing func arguments
+	var auth, pass string
+
+	// Parse passed arguments
+	for _, arg := range args {
+
+		switch v := arg.(type) {
+
+		case []string:
+			if len(v) > 3 {
+				err = fmt.Errorf("too many string parameters provided")
+				return
+			}
+
+			// First string is either token or username
+			if len(v) > 0 {
+				auth = v[0]
+			}
+
+			// If second string exists, it must be a password.
+			if len(v) > 1 {
+				pass = v[1]
+			}
+
+			// If third string exists, it must be an auth token.
+			if len(v) > 2 {
+				s.Token = v[2]
+			}
+
+		case string:
+			// First string must be either auth token or username.
+			// Second string must be a password.
+			// Only 2 input strings are supported.
+
+			if auth == "" {
+				auth = v
+			} else if pass == "" {
+				pass = v
+			} else if s.Token == "" {
+				s.Token = v
+			} else {
+				err = fmt.Errorf("too many string parameters provided")
+				return
+			}
+
+			//		case Config:
+			// TODO: Parse configuration struct
+
+		default:
+			err = fmt.Errorf("unsupported parameter type provided")
+			return
+		}
+	}
+
+	// If only one string was provided, assume it is an auth token.
+	// Otherwise get auth token from Discord, if a token was specified
+	// Discord will verify it for free, or log the user in if it is
+	// invalid.
+	if pass == "" {
+		s.Token = auth
+	} else {
+		err = s.Login(auth, pass)
+		if err != nil || s.Token == "" {
+			if s.MFA {
+				err = ErrMFA
+			} else {
+				err = fmt.Errorf("Unable to fetch discord authentication token. %v", err)
+			}
+			return
+		}
+	}
+
+	// The Session is now able to have RestAPI methods called on it.
+	// It is recommended that you now call Open() so that events will trigger.
+
+	return
+}
+
+func NewWithContext(ctx context.Context, args ...interface{}) (s *Session, err error) {
 
 	// Create an empty Session interface.
 	s = &Session{
