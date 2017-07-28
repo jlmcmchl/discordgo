@@ -49,7 +49,7 @@ var ErrMFA = errors.New("account has 2FA enabled")
 // Also, doing any form of automation with a user (non Bot) account may result
 // in that account being permanently banned from Discord.
 func New(args ...interface{}) (s *Session, err error) {
-	ctx := context.WithTimeout(context.Background(), 20*time.Second)
+	ctx, _ := context.WithTimeout(context.Background(), 20*time.Second)
 
 	// Create an empty Session interface.
 	s = &Session{
@@ -61,7 +61,7 @@ func New(args ...interface{}) (s *Session, err error) {
 		ShardID:                0,
 		ShardCount:             1,
 		MaxRestRetries:         3,
-		Client:                 &urlfetch.Client(ctx),
+		Client:                 urlfetch.Client(ctx),
 		sequence:               new(int64),
 	}
 
